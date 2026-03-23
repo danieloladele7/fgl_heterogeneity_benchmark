@@ -1,44 +1,58 @@
-#
+# FGL Heterogeneity Benchmark
 
-## Research Questions
-### 1. Adaptive‑Robust FL Security:
-1. How effectively do existing robust FL schemes defend against **adaptive adversaries** who can disconnect and rejoin to evade detection?
-2. What are the trade‑offs between defense strength, model performance, and communication cost in adaptive‑robust scenarios?
-3. Which upcoming FL architectures (e.g., decentralized, threshold‑encrypted) can mitigate such attacks while preserving usability?
+A reproducible benchmarking suite for non-IID data in Federated Graph Learning, implementing the taxonomy, metrics, and partition protocols from "Benchmarking Non-IID Data in Federated Graph Learning".
 
-### FL Privacy Metrics and Gaps:
-1. What **privacy metrics and evaluation methods** are currently used to quantify privacy in FL across domains (e.g., differential privacy, HE, SMPC)?
-2. Where do these metrics fail—especially under regulatory compliance scenarios like GDPR or cross‑jurisdictional standards?
-3. How can new standardized metrics better reflect the balance between privacy, utility, cost, and compliance?
+## Features
 
-## Methods and Contributions:
+- **8 metric types** covering label skew, feature skew, topology skew, overlap, quantity skew, and domain shift.
+- **5 partition protocols** with deterministic reproducibility.
+- **Boundary-edge policies** for subgraph federations.
+- **Manifest generation** for auditability and version control.
 
-This section includes techniques used, contribution, and threat model (for adaptive frameworks)
+## Installation
 
-### Contributions:
-#### 1. Non-IID
-- []() | [code]()
+```bash
+git clone https://github.com/your-org/fgl-heterogeneity-benchmark.git
+cd fgl-heterogeneity-benchmark
+pip install -e .
+```
 
-#### 2. Privacy
-- []() | [code]()
+## Quick Start
 
-#### 3. Environments Contraints.
-- []() | [code]()
+See `examples/` for usage.
 
-### Methods:
-#### 1. Graph
-- []() | [code]() 
-- [Federated Graph Classification over Non-IID Graphs](https://proceedings.neurips.cc/paper/2021/file/9c6947bd95ae487c81d4e19d3ed8cd6f-Paper.pdf)
-- []() | [code]()
+## Citation
 
-#### 2. GAN
-- [Fed-TGAN:]() | [code]()
-- []() | [code]()
+If you use this code, please cite the accompanying manuscript.
 
-#### 3. AutoEncoders
-- [FedIoT:](https://dl.acm.org/doi/pdf/10.1145/3485730.3493444) Federated Learning for Internet of Things | [code](https://github.com/FedML-AI/FedIoT)
-- [FedMSE:](https://www.sciencedirect.com/science/article/pii/S0167404825000264) Semi-supervised federated learning approach for IoT network intrusion detection | [code](https://github.com/dino-chiio/fedmse)
-- []() | [code]()
+```text
 
-#### 4. Aggregators
-- []() | [code]()
+
+```
+
+## License
+
+MIT
+
+### Testing (Optional)
+
+```python
+# tests/test_metrics.py
+import numpy as np
+from fgl_heterogeneity.metrics.label_metrics import jensen_shannon_divergence, label_distribution_divergence
+
+def test_jsd():
+    p = np.array([0.5, 0.5])
+    q = np.array([0.5, 0.5])
+    assert jensen_shannon_divergence(p, q) == 0.0
+
+    p = np.array([1.0, 0.0])
+    q = np.array([0.0, 1.0])
+    jsd = jensen_shannon_divergence(p, q)
+    assert np.isclose(jsd, np.log(2))  # maximum JSD = log(2)
+
+def test_label_divergence():
+    counts = [np.array([10, 0]), np.array([0, 10]), np.array([5, 5])]
+    res = label_distribution_divergence(counts)
+    assert res['pairwise_jsd'][0, 1] > res['pairwise_jsd'][0, 2]
+```
