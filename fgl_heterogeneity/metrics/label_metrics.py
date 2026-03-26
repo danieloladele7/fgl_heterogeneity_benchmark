@@ -35,7 +35,13 @@ def label_distribution_divergence(client_label_counts: List[np.ndarray]) -> Dict
     C = client_label_counts[0].shape[0]
     
     # Normalize to probability distributions
-    probs = [counts / counts.sum() for counts in client_label_counts]
+    probs = []
+    for counts in client_label_counts:
+        total = counts.sum()
+        if total <= 0:
+            probs.append(np.ones_like(counts, dtype=float) / len(counts))
+        else:
+            probs.append(counts / total)
     
     # Pairwise JSD
     pairwise_jsd = np.zeros((K, K))

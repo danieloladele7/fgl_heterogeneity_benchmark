@@ -1,0 +1,15 @@
+{
+  "policy": "masked_boundary",
+  "boundary_counts": [
+    13,
+    12,
+    16,
+    7
+  ],
+  "boundary_node_counts": [
+    7,
+    4,
+    6,
+    4
+  ]
+}

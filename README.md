@@ -1,58 +1,114 @@
 # FGL Heterogeneity Benchmark
 
-A reproducible benchmarking suite for non-IID data in Federated Graph Learning, implementing the taxonomy, metrics, and partition protocols from "Benchmarking Non-IID Data in Federated Graph Learning".
+A manuscript-ready validation repo for benchmarking non-IID data in federated graph learning.
 
-## Features
+## What is included
 
-- **8 metric types** covering label skew, feature skew, topology skew, overlap, quantity skew, and domain shift.
-- **5 partition protocols** with deterministic reproducibility.
-- **Boundary-edge policies** for subgraph federations.
-- **Manifest generation** for auditability and version control.
+This package implements:
 
-## Installation
+- the recommended metric suite M1--M8
+- the deterministic partition protocols P1--P5
+- boundary-edge policies for subgraph federations
+- manifest generation and hashing for reproducible releases
+- self-contained validation scripts on:
+  - Karate Club graph for node/subgraph settings
+  - synthetic multi-domain graph collections for cross-domain settings
+
+## Geting Started
+1. Creat a virtual environment
 
 ```bash
-git clone https://github.com/your-org/fgl-heterogeneity-benchmark.git
-cd fgl-heterogeneity-benchmark
+python -m venv fgl_heterogeneity
+source fgl_heterogeneity/bin/activate  # On Windows: fl_gcn\Scripts\activate
+
+# then git clone the project:
+git clone https://github.com/danieloladele7/fgl_heterogeneity_benchmark.git 
+```
+
+2. Install
+
+```bash
 pip install -e .
 ```
 
-## Quick Start
+For development tools:
 
-See `examples/` for usage.
-
-## Citation
-
-If you use this code, please cite the accompanying manuscript.
-
-```text
-
-
+```bash
+pip install -e .[dev]
 ```
+
+3. Run the pytest to test workflow
+
+```bash
+pytest -q tests validation/test_protocol_invariants.py
+```
+![pytest](./img/pytest.png)
+
+4. Run the validation workflow
+
+```bash
+python -m validation.run_all_validation
+```
+
+![validation](./img/validation.png)
+
+**This runs**:
+
+* protocol invariant checks
+* Karate-based validation
+* synthetic cross-domain validation
+
+Outputs are written to `outputs/`.
+
+## Self-contained datasets in this repo
+
+To keep the proof of concept runnable without external downloads, the validation workflow uses:
+
+- `Karate Club` for subgraph and node-level protocol checks
+- a synthetic two-domain graph collection for graph-level and cross-domain checks
+
+A loader for `torch_geometric` datasets remains available in `fgl_heterogeneity.utils.io_utils` for later expansion to Cora, CiteSeer, PubMed, or TU datasets when network access is available.
+
+## Example scripts
+
+```bash
+python examples/generate_partitions.py
+python examples/compute_metrics.py
+```
+
+## Notebook
+
+A proof-of-concept notebook is included under `notebooks/`.
+
+## Suggested manuscript framing
+
+This codebase is intended to validate that:
+
+- each partition protocol is deterministic under a fixed seed
+- each protocol satisfies basic assignment invariants
+- the intended heterogeneity axis is measurably changed by the corresponding protocol
+- manifests can be released and audited reproducibly
 
 ## License
 
 MIT
 
-### Testing (Optional)
+## Citation
+If you find this repo or the paper useful kindly cite this as:
 
-```python
-# tests/test_metrics.py
-import numpy as np
-from fgl_heterogeneity.metrics.label_metrics import jensen_shannon_divergence, label_distribution_divergence
-
-def test_jsd():
-    p = np.array([0.5, 0.5])
-    q = np.array([0.5, 0.5])
-    assert jensen_shannon_divergence(p, q) == 0.0
-
-    p = np.array([1.0, 0.0])
-    q = np.array([0.0, 1.0])
-    jsd = jensen_shannon_divergence(p, q)
-    assert np.isclose(jsd, np.log(2))  # maximum JSD = log(2)
-
-def test_label_divergence():
-    counts = [np.array([10, 0]), np.array([0, 10]), np.array([5, 5])]
-    res = label_distribution_divergence(counts)
-    assert res['pairwise_jsd'][0, 1] > res['pairwise_jsd'][0, 2]
+```bibtex
+@Article{iot7010013,
+    AUTHOR = {Oladele, Daniel Ayo and Sibiya, Malusi and Mnkandla, Ernest},
+    TITLE = {Benchmarking Non-IID Data in Federated Graph Learning: A Systematic Review of Metrics, Protocols, and Evaluation Practices},
+    JOURNAL = {IEEE Access},
+    VOLUME = {},
+    YEAR = {2026},
+    NUMBER = {},
+    ARTICLE-NUMBER = {},
+    URL = {https://github.com/danieloladele7/fgl_heterogeneity_benchmark.git},
+    ISSN = {},
+    ABSTRACT = {},
+    DOI = {}
+    NOTES = {Under Review IEEE Access; github link: https://github.com/danieloladele7/fgl_heterogeneity_benchmark.git}
+}
 ```

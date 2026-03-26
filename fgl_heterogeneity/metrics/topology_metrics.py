@@ -1,106 +1,123 @@
-import numpy as np
+"""Topology-aware heterogeneity metrics."""
+
+from __future__ import annotations
+
+from typing import Dict, List, Optional
+
 import networkx as nx
-from scipy.special import rel_entr
-from typing import List, Dict, Union, Optional
+import numpy as np
+
+from .label_metrics import jensen_shannon_divergence
+
 
 def compute_homophily(graph: nx.Graph, labels: Dict[int, int]) -> float:
-    """
-    Compute edge homophily ratio for a graph.
-    
-    Args:
-        graph: NetworkX graph
-        labels: Dictionary mapping node ID to class label
-        
-    Returns:
-        Homophily ratio = (# same-label edges) / (total edges)
-    """
+    """Compute edge homophily h_k = |{(u,v): y_u=y_v}| / |E_k|."""
     if graph.number_of_edges() == 0:
         return 0.0
-    
+
     same_label = 0
+    valid_edges = 0
     for u, v in graph.edges():
-        if u in labels and v in labels and labels[u] == labels[v]:
-            same_label += 1
-    return same_label / graph.number_of_edges()
+        if u in labels and v in labels:
+            valid_edges += 1
+            if labels[u] == labels[v]:
+                same_label += 1
+    if valid_edges == 0:
+        return 0.0
+    return same_label / valid_edges
 
 
-def homophily_gap(client_graphs: List[nx.Graph], 
-                  client_labels: List[Dict[int, int]]) -> Dict:
-    """
-    Compute pairwise homophily gap and federation-level variance.
-    """
-    K = len(client_graphs)
-    homophily_values = []
-    for g, lbl in zip(client_graphs, client_labels):
-        homophily_values.append(compute_homophily(g, lbl))
-    
+def homophily_gap(
+    client_graphs: List[nx.Graph], client_labels: List[Dict[int, int]]
+) -> Dict[str, object]:
+    """Compute pairwise homophily gaps and federation-level variance."""
+    if len(client_graphs) != len(client_labels):
+        raise ValueError("client_graphs and client_labels must have equal length")
+
+    homophily_values = [compute_homophily(g, lbl) for g, lbl in zip(client_graphs, client_labels)]
     pairwise_hg = np.abs(np.subtract.outer(homophily_values, homophily_values))
-    var_hg = np.var(homophily_values)
-    
     return {
-        'pairwise_hg': pairwise_hg,
-        'homophily_per_client': homophily_values,
-        'variance': var_hg
+        "pairwise_hg": pairwise_hg,
+        "homophily_per_client": homophily_values,
+        "variance": float(np.var(homophily_values)),
     }
 
 
-def degree_histogram(graph: nx.Graph, bins: Optional[int] = None) -> np.ndarray:
-    """
-    Compute normalized degree histogram.
-    """
-    degrees = [d for _, d in graph.degree()]
+def _shared_degree_histograms(client_graphs: List[nx.Graph], bins: Optional[int] = None) -> List[np.ndarray]:
+    max_degree = max((max((d for _, d in g.degree()), default=0) for g in client_graphs), default=0)
     if bins is None:
-        bins = int(np.sqrt(len(degrees)))  # heuristic
-    hist, _ = np.histogram(degrees, bins=bins, density=True)
-    return hist / (hist.sum() + 1e-10)
+        bins = max(5, min(50, max_degree + 1))
+    bin_edges = np.linspace(0, max_degree + 1, bins + 1)
+
+    summaries: List[np.ndarray] = []
+    for g in client_graphs:
+        degrees = [d for _, d in g.degree()]
+        hist, _ = np.histogram(degrees, bins=bin_edges, density=False)
+        hist = hist.astype(float)
+        hist /= hist.sum() + 1e-12
+        summaries.append(hist)
+    return summaries
 
 
-def topological_divergence(client_graphs: List[nx.Graph], 
-                           bins: Optional[int] = None,
-                           metric: str = 'degree') -> Dict:
+def _shared_clustering_histograms(client_graphs: List[nx.Graph], bins: int = 10) -> List[np.ndarray]:
+    bin_edges = np.linspace(0.0, 1.0, bins + 1)
+    summaries: List[np.ndarray] = []
+    for g in client_graphs:
+        values = list(nx.clustering(g).values()) if g.number_of_nodes() > 0 else [0.0]
+        hist, _ = np.histogram(values, bins=bin_edges, density=False)
+        hist = hist.astype(float)
+        hist /= hist.sum() + 1e-12
+        summaries.append(hist)
+    return summaries
+
+
+def _shared_spectral_histograms(client_graphs: List[nx.Graph], bins: int = 20) -> List[np.ndarray]:
+    bin_edges = np.linspace(0.0, 2.0, bins + 1)
+    summaries: List[np.ndarray] = []
+    for g in client_graphs:
+        if g.number_of_nodes() == 0:
+            hist = np.ones(bins, dtype=float) / bins
+        else:
+            L = nx.normalized_laplacian_matrix(g).astype(float).toarray()
+            evals = np.linalg.eigvalsh(L)
+            hist, _ = np.histogram(evals, bins=bin_edges, density=False)
+            hist = hist.astype(float)
+            hist /= hist.sum() + 1e-12
+        summaries.append(hist)
+    return summaries
+
+
+def topological_divergence(
+    client_graphs: List[nx.Graph], bins: Optional[int] = None, metric: str = "degree"
+) -> Dict[str, object]:
+    """Compute pairwise structural divergence using common summary histograms.
+
+    Supported structural summaries:
+    - degree histogram
+    - local clustering coefficient histogram
+    - normalized Laplacian spectral-density histogram
     """
-    Compute pairwise topological divergence via JSD on structural summaries.
-    
-    Args:
-        client_graphs: List of NetworkX graphs
-        bins: Number of bins for histogram
-        metric: 'degree', 'spectral', or 'motif'
-        
-    Returns:
-        Dict with pairwise TD matrix
-    """
-    K = len(client_graphs)
-    summaries = []
-    
-    if metric == 'degree':
-        for g in client_graphs:
-            summaries.append(degree_histogram(g, bins))
-    elif metric == 'spectral':
-        # Simplified: use normalized Laplacian eigenvalue histogram
-        for g in client_graphs:
-            try:
-                L = nx.normalized_laplacian_matrix(g).todense()
-                evals = np.linalg.eigvalsh(L)
-                hist, _ = np.histogram(evals, bins=20, density=True)
-                summaries.append(hist / (hist.sum() + 1e-10))
-            except:
-                summaries.append(np.ones(20) / 20)
+    if not client_graphs:
+        raise ValueError("client_graphs must contain at least one graph")
+
+    if metric == "degree":
+        summaries = _shared_degree_histograms(client_graphs, bins=bins)
+    elif metric == "clustering":
+        summaries = _shared_clustering_histograms(client_graphs, bins=bins or 10)
+    elif metric == "spectral":
+        summaries = _shared_spectral_histograms(client_graphs, bins=bins or 20)
     else:
         raise ValueError(f"Unsupported metric: {metric}")
-    
-    # Compute pairwise JSD
-    pairwise_td = np.zeros((K, K))
+
+    K = len(client_graphs)
+    pairwise_td = np.zeros((K, K), dtype=float)
     for i in range(K):
-        for j in range(i+1, K):
-            p = summaries[i] + 1e-10
-            q = summaries[j] + 1e-10
-            p = p / p.sum()
-            q = q / q.sum()
-            m = 0.5 * (p + q)
-            jsd = 0.5 * (rel_entr(p, m).sum() + rel_entr(q, m).sum())
-            pairwise_td[i, j] = pairwise_td[j, i] = jsd
-    
+        for j in range(i + 1, K):
+            td = jensen_shannon_divergence(summaries[i], summaries[j])
+            pairwise_td[i, j] = pairwise_td[j, i] = td
+
     return {
-        'pairwise_td': pairwise_td,
-        'summaries': summaries
+        "pairwise_td": pairwise_td,
+        "summaries": summaries,
+        "metric": metric,
     }
